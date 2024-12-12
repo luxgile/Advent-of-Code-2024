@@ -1,48 +1,55 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
 
-const input = @embedFile("day_01.txt");
+const input = @embedFile("day_02.txt");
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    var left_column = ArrayList(i32).init(arena.allocator());
-    var right_column = ArrayList(i32).init(arena.allocator());
-
     var lines_it = std.mem.tokenizeScalar(u8, input, '\n');
+    var reports_safe: u32 = 0;
+    var reports_safe_guarded: u32 = 0;
     while (lines_it.next()) |line| {
         var number_it = std.mem.tokenizeScalar(u8, line, ' ');
-        const left: i32 = @intCast(try std.fmt.parseInt(u32, number_it.next().?, 10));
-        const right: i32 = @intCast(try std.fmt.parseInt(u32, number_it.next().?, 10));
-
-        try left_column.append(left);
-        try right_column.append(right);
+        var numbers = ArrayList(i32).init(arena.allocator());
+        while (number_it.next()) |number| {
+            try numbers.append(try std.fmt.parseInt(i32, number, 10));
+        }
+        if (is_report_safe(numbers.items, true)) {
+            reports_safe += 1;
+        }
+        if (is_report_safe(numbers.items, false)) {
+            reports_safe_guarded += 1;
+        }
     }
 
-    std.mem.sort(i32, left_column.items, {}, comptime std.sort.asc(i32));
-    std.mem.sort(i32, right_column.items, {}, comptime std.sort.asc(i32));
-
-    const distance = get_distance(left_column.items, right_column.items);
-    std.debug.print("Part 01 - Distance: {}\n", .{distance});
-
-    const similarities = get_similarities(left_column.items, right_column.items);
-    std.debug.print("Part 02 - Similarities: {}\n", .{similarities});
+    // FIXME: Not working, printing wrong numbers.
+    std.debug.print("Part 1 - Reports safe: {}\n", .{reports_safe});
+    std.debug.print("Part 2 - Reports safe with damp: {}\n", .{reports_safe_guarded});
 }
 
-fn get_distance(left: []i32, right: []i32) u32 {
-    var total_distance: u32 = 0;
-    for (left, right) |l, r| {
-        total_distance += @abs(l - r);
+fn is_report_safe(report: []i32, start_failed: bool) bool {
+    const ascending = report[0] - report[1] > 0;
+    var failed = start_failed;
+    var prev = report[0];
+    for (1..report.len) |i| {
+        const level = report[i];
+        if (!is_pair_safe(ascending, prev, level)) {
+            if (!failed) {
+                failed = true;
+                continue;
+            }
+            return false;
+        }
+        prev = level;
     }
-    return total_distance;
+    return true;
 }
 
-fn get_similarities(left: []i32, right: []i32) i32 {
-    var similarities: i32 = 0;
-    for (left) |l| {
-        const repetitions: i32 = @intCast(std.mem.count(i32, right, &[_]i32{l}));
-        similarities += l * repetitions;
-    }
-    return similarities;
+fn is_pair_safe(ascending: bool, a: i32, b: i32) bool {
+    if (a == b) return false;
+    if (@abs(a - b) >= 3) return false;
+    if (ascending and a - b < 0) return false;
+    return true;
 }
