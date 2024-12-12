@@ -3,6 +3,8 @@ const ArrayList = std.ArrayList;
 
 const input = @embedFile("day_02.txt");
 
+const Direction = enum { None, Up, Down };
+
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -16,10 +18,10 @@ pub fn main() !void {
         while (number_it.next()) |number| {
             try numbers.append(try std.fmt.parseInt(i32, number, 10));
         }
-        if (is_report_safe(numbers.items, true)) {
+        if (is_report_safe(numbers.items)) {
             reports_safe += 1;
         }
-        if (is_report_safe(numbers.items, false)) {
+        if (is_report_safe_dampened(numbers.items, arena.allocator())) {
             reports_safe_guarded += 1;
         }
     }
@@ -29,27 +31,50 @@ pub fn main() !void {
     std.debug.print("Part 2 - Reports safe with damp: {}\n", .{reports_safe_guarded});
 }
 
-fn is_report_safe(report: []i32, start_failed: bool) bool {
-    const ascending = report[0] - report[1] > 0;
-    var failed = start_failed;
+fn is_report_safe(report: []i32) bool {
+    var dir = Direction.None;
     var prev = report[0];
     for (1..report.len) |i| {
         const level = report[i];
-        if (!is_pair_safe(ascending, prev, level)) {
-            if (!failed) {
-                failed = true;
-                continue;
-            }
+
+        if (dir == .None) dir = get_dir(prev, level);
+
+        if (!is_pair_safe(dir, prev, level)) {
             return false;
         }
+
         prev = level;
     }
     return true;
 }
 
-fn is_pair_safe(ascending: bool, a: i32, b: i32) bool {
+fn is_report_safe_dampened(report: []i32, allocator: std.mem.Allocator) bool {
+    if (is_report_safe(report)) {
+        return true;
+    }
+
+    for (0..report.len) |i| {
+        var new_report = ArrayList(i32).init(allocator);
+        new_report.appendSlice(report[0..i]) catch unreachable;
+        new_report.appendSlice(report[i + 1 ..]) catch unreachable;
+
+        if (is_report_safe(new_report.items)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+fn is_pair_safe(direction: Direction, a: i32, b: i32) bool {
     if (a == b) return false;
-    if (@abs(a - b) >= 3) return false;
-    if (ascending and a - b < 0) return false;
+    if (@abs(a - b) > 3) return false;
+    const dir = get_dir(a, b);
+    if (direction != dir) return false;
     return true;
+}
+
+fn get_dir(a: i32, b: i32) Direction {
+    if (a == b) return Direction.None;
+    if (a - b < 0) return Direction.Up else return Direction.Down;
 }
